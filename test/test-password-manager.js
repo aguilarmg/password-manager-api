@@ -73,25 +73,25 @@ describe('Password manager', function() {
             expect(keychain.remove('www.stanford.edu')).to.be(false);
         });
 
-        //it('can dump and restore the database', function() {
-        //    keychain.init(password);
-        //    for (var k in kvs) {
-        //        keychain.set(k, kvs[k]);
-        //    }
-        //    var data = keychain.dump();
-        //    var contents = data[0];
-        //    var checksum = data[1];
-        //    var newKeychain = passwordManager.keychain();
+        it('can dump and restore the database', function() {
+            keychain.init(password);
+            for (var k in kvs) {
+                keychain.set(k, kvs[k]);
+            }
+            var data = keychain.dump();
+            var contents = data[0];
+            var checksum = data[1];
+            var newKeychain = passwordManager.keychain();
 
-        //    // Make sure it's valid JSON
-        //    expect(function() {
-        //        JSON.parse(contents)
-        //    }).not.to.throwException();
-        //    expect(newKeychain.load(password, contents, checksum)).to.be(true);
-        //    for (var k in kvs) {
-        //        expect(keychain.get(k)).to.equal(kvs[k]);
-        //    }
-        //});
+            // Make sure it's valid JSON
+            expect(function() {
+                JSON.parse(contents)
+            }).not.to.throwException();
+            expect(newKeychain.load(password, contents, checksum)).to.be(true);
+            for (var k in kvs) {
+                expect(keychain.get(k)).to.equal(kvs[k]);
+            }
+        });
 
         //it('fails to restore the database if checksum is wrong', function() {
         //    keychain.init(password);
@@ -120,20 +120,20 @@ describe('Password manager', function() {
         //});
     });
 
-    //describe('security', function() {
+    describe('security', function() {
 
-    //    // Very basic test to make sure you're not doing the most naive thing
-    //    it("doesn't store domain names and passwords in the clear", function() {
-    //        keychain.init(password);
-    //        var url = 'www.stanford.edu';
-    //        var pw = 'sunetpassword';
-    //        keychain.set(url, pw);
-    //        var data = keychain.dump();
-    //        var contents = data[0];
-    //        expect(contents).not.to.contain(password);
-    //        expect(contents).not.to.contain(url);
-    //        expect(contents).not.to.contain(pw);
-    //    });
+        // Very basic test to make sure you're not doing the most naive thing
+        it("doesn't store domain names and passwords in the clear", function() {
+            keychain.init(password);
+            var url = 'www.stanford.edu';
+            var pw = 'sunetpassword';
+            keychain.set(url, pw);
+            var data = keychain.dump();
+            var contents = data[0];
+            expect(contents).not.to.contain(password);
+            expect(contents).not.to.contain(url);
+            expect(contents).not.to.contain(pw);
+        });
 
     //    // This test won't be graded directly -- it just exists to make sure your
     //    // dump include a kvs object with all your urls and passwords, because
@@ -151,5 +151,5 @@ describe('Password manager', function() {
     //        expect(Object.getOwnPropertyNames(contentsObj.kvs)).to.have.length(10);
     //    })
 
-    //});
+    });
 });
