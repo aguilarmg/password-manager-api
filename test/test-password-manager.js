@@ -93,31 +93,31 @@ describe('Password manager', function() {
             }
         });
 
-        //it('fails to restore the database if checksum is wrong', function() {
-        //    keychain.init(password);
-        //    for (var k in kvs) {
-        //        keychain.set(k, kvs[k]);
-        //    }
-        //    var data = keychain.dump();
-        //    var contents = data[0];
-        //    var fakeChecksum = '3GB6WSm+j+jl8pm4Vo9b9CkO2tZJzChu34VeitrwxXM=';
-        //    var newKeychain = passwordManager.keychain();
-        //    expect( function() {
-        //        newKeychain.load(password, contents, fakeChecksum);
-        //    }).to.throwException();
-        //});
+        it('fails to restore the database if checksum is wrong', function() {
+            keychain.init(password);
+            for (var k in kvs) {
+                keychain.set(k, kvs[k]);
+            }
+            var data = keychain.dump();
+            var contents = data[0];
+            var fakeChecksum = '3GB6WSm+j+jl8pm4Vo9b9CkO2tZJzChu34VeitrwxXM=';
+            var newKeychain = passwordManager.keychain();
+            expect( function() {
+                newKeychain.load(password, contents, fakeChecksum);
+            }).to.throwException();
+        });
 
-        //it('returns false if trying to load with an incorrect password', function() {
-        //    keychain.init(password);
-        //    for (var k in kvs) {
-        //        keychain.set(k, kvs[k]);
-        //    }
-        //    var data = keychain.dump();
-        //    var contents = data[0];
-        //    var checksum = data[1];
-        //    var newKeychain = passwordManager.keychain();
-        //    expect(newKeychain.load("fakepassword", contents, data[1])).to.be(false);
-        //});
+        it('returns false if trying to load with an incorrect password', function() {
+            keychain.init(password);
+            for (var k in kvs) {
+                keychain.set(k, kvs[k]);
+            }
+            var data = keychain.dump();
+            var contents = data[0];
+            var checksum = data[1];
+            var newKeychain = passwordManager.keychain();
+            expect(newKeychain.load("fakepassword", contents, data[1])).to.be(false);
+        });
     });
 
     describe('security', function() {
