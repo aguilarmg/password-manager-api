@@ -118,6 +118,32 @@ describe('Password manager', function() {
             var newKeychain = passwordManager.keychain();
             expect(newKeychain.load("fakepassword", contents, data[1])).to.be(false);
         });
+
+        it('can continue adding passwords after dumping/restoring database', function() {
+            keychain.init(password);
+            for (var k in kvs) {
+                keychain.set(k, kvs[k]);
+            }
+            var data = keychain.dump();
+            var contents = data[0];
+            var checksum = data[1];
+            var newKeychain = passwordManager.keychain();
+
+            // Make sure it's valid JSON
+            expect(function() {
+                JSON.parse(contents)
+            }).not.to.throwException();
+            expect(newKeychain.load(password, contents, checksum)).to.be(true);
+            for (var k in kvs) {
+                expect(keychain.get(k)).to.equal(kvs[k]);
+            }
+            
+            // Add another password after restoring the database.
+            var url = 'www.stanford.edu';
+            var pw = 'sunetpassword';
+            newKeychain.set(url, pw);
+            expect(newKeychain.get(url)).to.equal(pw);
+        });
     });
 
     describe('security', function() {
@@ -135,21 +161,21 @@ describe('Password manager', function() {
             expect(contents).not.to.contain(pw);
         });
 
-    //    // This test won't be graded directly -- it just exists to make sure your
-    //    // dump include a kvs object with all your urls and passwords, because
-    //    // we will be using that in other tests.
-    //    it('includes a kvs object in the serialized dump', function() {
-    //        keychain.init(password);
-    //        for (var i = 0; i < 10; i++) {
-    //            keychain.set(String(i), String(i));
-    //        }
-    //        var data = keychain.dump();
-    //        var contents = data[0];
-    //        var contentsObj = JSON.parse(contents);
-    //        expect(contentsObj).to.have.key('kvs');
-    //        expect(contentsObj.kvs).to.be.an('object');
-    //        expect(Object.getOwnPropertyNames(contentsObj.kvs)).to.have.length(10);
-    //    })
+        // This test won't be graded directly -- it just exists to make sure your
+        // dump include a kvs object with all your urls and passwords, because
+        // we will be using that in other tests.
+        it('includes a kvs object in the serialized dump', function() {
+            keychain.init(password);
+            for (var i = 0; i < 10; i++) {
+                keychain.set(String(i), String(i));
+            }
+            var data = keychain.dump();
+            var contents = data[0];
+            var contentsObj = JSON.parse(contents);
+            expect(contentsObj).to.have.key('kvs');
+            expect(contentsObj.kvs).to.be.an('object');
+            expect(Object.getOwnPropertyNames(contentsObj.kvs)).to.have.length(10);
+        })
 
     });
 });
