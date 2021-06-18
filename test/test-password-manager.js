@@ -89,7 +89,7 @@ describe('Password manager', function() {
             }).not.to.throwException();
             expect(newKeychain.load(password, contents, checksum)).to.be(true);
             for (var k in kvs) {
-                expect(keychain.get(k)).to.equal(kvs[k]);
+                expect(newKeychain.get(k)).to.equal(kvs[k]);
             }
         });
 

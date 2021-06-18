@@ -53,6 +53,10 @@ var keychainClass = function() {
   // Length of the keys (in bits).
   var HMAC_KEY_LEN = 128;
   var AES_KEY_LEN = 128;
+
+  // Salts used for generating hmac_key and aes_key.
+  var HMAC_SALT = "HMAC salt."
+  var AES_SALT = "AES salt."
   
   // Flag to indicate whether password manager is "ready" or not
   var ready = false;
@@ -81,8 +85,8 @@ var keychainClass = function() {
     // master_key <- KDF(master_password, master_salt)
     priv.secrets["master_key"] = KDF(password, priv.secrets["master_salt"]);
     // key <- HMAC(master_key, salt)
-    priv.secrets.hmac_key = HMAC(priv.secrets["master_key"], randomBitarray(HMAC_KEY_LEN));
-    priv.secrets.aes_key = HMAC(priv.secrets["master_key"], randomBitarray(AES_KEY_LEN));
+    priv.secrets.hmac_key = HMAC(priv.secrets["master_key"], HMAC_SALT);
+    priv.secrets.aes_key = HMAC(priv.secrets["master_key"], AES_SALT);
 
     // Go ahead and set up a cipher for AES since it will be used in both get()
     // and set() functions.
@@ -131,9 +135,16 @@ var keychainClass = function() {
     }
     
     // Store data in keychain.
-    priv.data = kvs_data;
+    priv.data.kvs = kvs_data;
     priv.secrets.master_salt = master_salt;
     priv.secrets.master_key = master_key;
+
+    // Regenerate the HMAC and AES keys.
+    priv.secrets.hmac_key = HMAC(priv.secrets["master_key"], HMAC_SALT);
+    priv.secrets.aes_key = HMAC(priv.secrets["master_key"], AES_SALT);
+
+    // Set up the AES cipher again.
+    priv.secrets.aes_cipher = setupCipher(bitarraySlice(priv.secrets.aes_key, 0, AES_KEY_LEN));
 
     // Indicate that the keychain is now ready to use.
     ready = true;
