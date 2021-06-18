@@ -35,11 +35,24 @@ var keychainClass = function() {
   // Use this variable to store everything you need to.
   var priv = {
     secrets: { /* Your secrets here */ },
-    data: { /* Non-secret data here */ }
+    data: { 
+      /* Non-secret data here */ 
+      // Initialize the kvs struct in priv.data
+      kvs: {
+
+      },
+    }
   };
 
   // Maximum length of each record in bytes
   var MAX_PW_LEN_BYTES = 64;
+
+  // Length of the KDF salt
+  var KDF_SALT_LEN = 128;
+  
+  // Length of the keys (in bits).
+  var HMAC_KEY_LEN = 128;
+  var AES_KEY_LEN = 128;
   
   // Flag to indicate whether password manager is "ready" or not
   var ready = false;
@@ -60,14 +73,22 @@ var keychainClass = function() {
     // information about it), or any of the secret keys used, in 
     // the serialized password database on disk.
     priv.data.version = "CS 255 Password Manager v1.0";
-    // Create a random bit array of length 128 bits.
-    keychain["kdf_salt"] = randomBitarray(128);
 
-    keychain["master_key"] = KDF(password, keychain["kdf_salt"]);
+    // Create a random bit array of length 128 bits, and have that serve
+    // as the salt for PBKDF2.
+    priv.secrets["master_salt"] = randomBitarray(KDF_SALT_LEN);
 
-    priv.secrets.hmac_key = HMAC(keychain["master_key"], randomBitarray(128));
-    priv.secrets.aes_key = HMAC(keychain["master_key"], randomBitarray(128));
+    // master_key <- KDF(master_password, master_salt)
+    priv.secrets["master_key"] = KDF(password, priv.secrets["master_salt"]);
+    // key <- HMAC(master_key, salt)
+    priv.secrets.hmac_key = HMAC(priv.secrets["master_key"], randomBitarray(HMAC_KEY_LEN));
+    priv.secrets.aes_key = HMAC(priv.secrets["master_key"], randomBitarray(AES_KEY_LEN));
 
+    // Go ahead and set up a cipher for AES since it will be used in both get()
+    // and set() functions.
+    priv.secrets.aes_cipher = setupCipher(bitarraySlice(priv.secrets.aes_key, 0, AES_KEY_LEN));
+
+    // Indicate that the keychain is now ready to use.
     ready = true;
 
   };
@@ -90,22 +111,33 @@ var keychainClass = function() {
     * Return Type: boolean
     */
   keychain.load = function(password, repr, trustedDataCheck) {
-    keychain = JSON.parse(repr);
-    const presumed_kdf_salt = keychain["kdf_salt"];
-    const presumed_master_key = keychain["master_key"];
-    const produced_master_key = KDF(password, presumed_kdf_salt);
-    if ( bitarrayToBase64(presumed_master_key) !== bitarrayToBase64(produced_master_key) ) {
+    // Extract all of the data from repr.
+    const keychain_load = JSON.parse(repr);
+    const kvs_data = keychain_load["kvs"];
+    const master_salt = keychain_load["master_salt"];
+    const master_key = keychain_load["master_key"];
+
+    // Check to see if the master_key that was in repr matches the one that we
+    // compute using master_salt and password.
+    const computed_master_key = KDF(password, master_salt);
+    if (bitarrayToBase64(computed_master_key) !== bitarrayToBase64(master_key)) {
       return false;
     }
-    if (trustedDataCheck !== undefined) {
-      const produced_sha256 = bitarrayToBase64( SHA256(stringToBitarray(repr)) );
-      if ( produced_sha256 !== trustedDataCheck ) {
-        throw "This checksum does not match the checksum of the keychain.";  
-      }
+    
+    // Check to see if the checksum of repr matches trustedDataCheck.
+    const repr_checksum = bitarrayToBase64(SHA256(stringToBitarray(repr)));
+    if (trustedDataCheck !== undefined && trustedDataCheck !== repr_checksum) {
+      throw "Checksums do not match.";
     }
+    
+    // Store data in keychain.
+    priv.data = kvs_data;
+    priv.secrets.master_salt = master_salt;
+    priv.secrets.master_key = master_key;
+
+    // Indicate that the keychain is now ready to use.
     ready = true;
     return true;
-
   };
 
   /**
@@ -125,10 +157,15 @@ var keychainClass = function() {
     if (!ready) {
       throw "Keychain not initialized."
     }
-    const json_keychain = JSON.stringify(keychain);
-    //priv.secrets.sha256_checksum = bitarrayToBase64( SHA256(stringToBitarray(json_keychain)) );
-    const sha256_checksum = bitarrayToBase64( SHA256(stringToBitarray(json_keychain)) );
-    return [ json_keychain, sha256_checksum ];
+    // Create a keychain_dump JSON object and dump all of the necessary
+    // information for restoring a keychain.
+    let keychain_dump = { };
+    keychain_dump["master_salt"] = priv.secrets["master_salt"];
+    keychain_dump["master_key"] = priv.secrets["master_key"];
+    keychain_dump["kvs"] = priv.data.kvs;
+
+    const sha256_checksum = bitarrayToBase64(SHA256(stringToBitarray(JSON.stringify(keychain_dump))));
+    return [ JSON.stringify(keychain_dump), sha256_checksum ];
   };
 
   /**
@@ -145,16 +182,17 @@ var keychainClass = function() {
     if (!ready) {
       throw "Keychain not initialized."
     }
+    // Compute HMAC(hmac_key, domain)
     const hmac_domain = bitarrayToBase64(HMAC(priv.secrets.hmac_key, name));
+
     // If there is no entry in the KVS that matches the given domain, then 
     // return null.
-    if (!keychain[hmac_domain]) {
+    if (!priv.data.kvs[hmac_domain]) {
       return null;
     }
 
-    // Construct the cipher prior to calling decryptWithGCM().
-    const aes_cipher = setupCipher( bitarraySlice(priv.secrets.aes_key, 0, 128) );
-    const plaintext_bitarray = decryptWithGCM( aes_cipher, keychain[hmac_domain] );
+    const plaintext_bitarray = decryptWithGCM(priv.secrets.aes_cipher, priv.data.kvs[hmac_domain]);
+
     // decryptWithGCM() returns a bitarray, so convert the bitarray to a string
     // prior to returning.
     return bitarrayToString( plaintext_bitarray );
@@ -175,16 +213,14 @@ var keychainClass = function() {
     if (!ready) {
       throw "Keychain not initialized."
     }
+    // Compute HMAC(hmac_key, domain)
     const hmac_domain = bitarrayToBase64(HMAC(priv.secrets.hmac_key, name));
-
-    // Construct the cipher prior to calling encryptWithGCM().
-    const aes_cipher = setupCipher( bitarraySlice(priv.secrets.aes_key, 0, 128) );
-    const aes_value = encryptwithGCM(aes_cipher, stringToBitarray(value));
+    const aes_value = encryptwithGCM(priv.secrets.aes_cipher, stringToBitarray(value));
     
     // Store the key-value pair. This should, by default, overwrite whatever
     // value was already paired with hmac_domain. Additionally, if the 
     // key-value pair does not exist already, then it will be created.
-    keychain[hmac_domain] = aes_value;
+    priv.data.kvs[hmac_domain] = aes_value;
   };
 
   /**
@@ -200,19 +236,18 @@ var keychainClass = function() {
     if (!ready) {
       throw "Keychain not initialized."
     }
-    
+    // Compute HMAC(hmac_key, domain)
     const hmac_domain = bitarrayToBase64(HMAC(priv.secrets.hmac_key, name));
     
     // If a record with the specified domain does not exist, then return false.
-    if (!keychain[hmac_domain]) {
+    if (!priv.data.kvs[hmac_domain]) {
       return false;
     }
 
     // If a record with the specified domain exists, then delete the key-value
     // pair from the keychain, and return true.
-    delete keychain[hmac_domain];
+    delete priv.data.kvs[hmac_domain];
     return true;
-
   };
 
   return keychain;
