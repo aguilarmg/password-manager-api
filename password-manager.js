@@ -53,6 +53,8 @@ var keychainClass = function() {
   // Length of the keys (in bits).
   var HMAC_KEY_LEN = 128;
   var AES_KEY_LEN = 128;
+  // Length of passwords
+  var PW_LENGTH = 64;
 
   // Salts used for generating hmac_key and aes_key.
   var HMAC_SALT = "HMAC salt."
@@ -206,7 +208,7 @@ var keychainClass = function() {
 
     // decryptWithGCM() returns a bitarray, so convert the bitarray to a string
     // prior to returning.
-    return bitarrayToString( plaintext_bitarray );
+    return paddedBitarrayToString(plaintext_bitarray, PW_LENGTH);
   };
 
   /** 
@@ -226,7 +228,7 @@ var keychainClass = function() {
     }
     // Compute HMAC(hmac_key, domain)
     const hmac_domain = bitarrayToBase64(HMAC(priv.secrets.hmac_key, name));
-    const aes_value = encryptwithGCM(priv.secrets.aes_cipher, stringToBitarray(value));
+    const aes_value = encryptwithGCM(priv.secrets.aes_cipher, stringToPaddedBitarray(value, PW_LENGTH));
     
     // Store the key-value pair. This should, by default, overwrite whatever
     // value was already paired with hmac_domain. Additionally, if the 
